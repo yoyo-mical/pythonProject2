@@ -175,6 +175,8 @@ if __name__=='__main__':
     exit()
     operatorMark = 'buy'
     # buy参数设定：
+    stock_code = []
+    opdate ='2021-07-05'
 
     # sell参数设定：
 
