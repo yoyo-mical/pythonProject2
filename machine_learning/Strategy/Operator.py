@@ -65,7 +65,7 @@ def buy(stock_code,opdate,buy_money):
     else:
         return -4
 
-def sell(stock_code,opdate,predict):
+def sell(stock_code,opdate):
 
     deal = Deal.Deal(stock_code,opdate)
     init_price = deal.stock_map1[stock_code]
@@ -86,15 +86,15 @@ def sell(stock_code,opdate,predict):
         bz = 'BADSELL'
     elif hold_days >= 4 and hold_vol > 0:
         bz = 'OVERTIMESELL'
-    elif predict == -1:
-        bz = 'PredictSell'
+    # elif predict == -1:
+    #     bz = 'PredictSell'
 
     db = pymysql.connect(host='127.0.0.1', user='root', passwd='123456', db='test', charset='utf8')
     cursor = db.cursor()
 
     sql_sell_insert = "insert into my_capital(capital,money_lock,money_rest,deal_action,stock_code,stock_vol,profit,profit_rate,bz,state_dt,deal_price)" \
-                      "values('%.2f','%.2f','%.2f','%s','%s','%.2f','%.2f','%.2f','%s','%s','%.2f')" \
-                      % (new_capital, new_money_lock, new_money_rest, 'SELL', stock_code, hold_vol, new_profit,
+                      "values('%.2f','%.2f','%.2f','%s','%s','%.2f','%.2f','%.3f','%s','%s','%.2f')" \
+                      % (new_capital, new_money_lock, new_money_rest, 'sell', stock_code, hold_vol, new_profit,
                          new_profit_rate, bz, opdate, sell_price)
     cursor.execute(sql_sell_insert)
     db.commit()
@@ -127,58 +127,130 @@ def Dealback(rows):
 
     db = pymysql.connect(host='127.0.0.1', user='root', passwd='123456', db='test', charset='utf8')
     cursor = db.cursor()
+    if rows == -1:
+        sql1 = "truncate TABLE {}".format("my_capital")
+        sql_id = "alter table my_capital AUTO_INCREMENT=1"
+        sql_update = "insert into my_capital (capital,money_rest) VALUES ('%.2f', '%.2f')" % (150000, 150000)
+        sql2 = "truncate TABLE {}".format("my_stock_pool")
+        cursor.execute(sql1)
+        cursor.execute(sql_id)
+        cursor.execute(sql_update)
+        cursor.execute(sql2)
+    else:
+        for i in range(rows):
+            sql_insert1 = "select deal_action,deal_price,stock_vol,stock_code,profit_rate from my_capital order by seq desc limit 1"
+            cursor.execute(sql_insert1)
+            deal_action = cursor.fetchall()
+            sql_insert2 = "delete from my_capital order by seq desc limit 1"
+            if deal_action[0][0] == None:
+                cursor.execute(sql_insert2)
+            elif deal_action[0][0] == 'buy':
+                deal_price = deal_action[0][1]
+                stock_vol = deal_action[0][2]
+                stock_code = deal_action[0][3]
+                sql_insert3 = "select * from my_stock_pool where stock_code = '{}'".format(stock_code)
+                cursor.execute(sql_insert3)
+                poolset = cursor.fetchall()
+                now_price = poolset[0][1]
+                now_vol = poolset[0][2]
+                now_hold = poolset[0][3]
+                if now_vol - stock_vol == 0:
+                    sql_insert4 = "delete from my_stock_pool where stock_code = '{}'".format(stock_code)
+                    cursor.execute(sql_insert4)
+                    cursor.execute(sql_insert2)
+                else:
+                    old_vol = now_vol - stock_vol
+                    old_price = (now_price * now_vol - deal_price * stock_vol) / old_vol
+                    old_hold = now_hold - 1
+                    sql_insert5 = "update my_stock_pool set buy_price = {0},hold_vol = {1},hold_days = {2} " \
+                                  "where stock_code = '{3}'".format(old_price, old_vol, old_hold, stock_code)
+                    cursor.execute(sql_insert5)
+                    cursor.execute(sql_insert2)
+            elif deal_action[0][0] == 'sell':
+                deal_price = deal_action[0][1]
+                stock_vol = deal_action[0][2]
+                stock_code = deal_action[0][3]
+                profit_rate = deal_action[0][4]
+                back_price = deal_price/profit_rate
+                sql_insert3 = "insert into my_stock_pool (stock_code,buy_price,hold_vol,hold_days) " \
+                              "VALUES ('%s', '%.2f', '%i', '%i')" % (stock_code, back_price,stock_vol,1)
+                cursor.execute(sql_insert3)
+                cursor.execute(sql_insert2)
 
-    for i in range(rows):
-        sql_insert1 = "select deal_action,deal_price,stock_vol,stock_code from my_capital order by seq desc limit 1"
-        cursor.execute(sql_insert1)
-        deal_action = cursor.fetchall()
-        sql_insert2 = "delete from my_capital order by seq desc limit 1"
-        if deal_action[0][0] == None:
-            cursor.execute(sql_insert2)
-        elif deal_action[0][0] == 'buy':
-            deal_price = deal_action[0][1]
-            stock_vol = deal_action[0][2]
-            stock_code = deal_action[0][3]
-            sql_insert3 = "select * from my_stock_pool where stock_code = '{}'".format(stock_code)
-            cursor.execute(sql_insert3)
-            poolset = cursor.fetchall()
-            now_price = poolset[0][1]
-            now_vol = poolset[0][2]
-            now_hold= poolset[0][3]
-            if now_vol-stock_vol == 0:
-                sql_insert4 = "delete from my_stock_pool where stock_code = '{}'".format(stock_code)
-                cursor.execute(sql_insert4)
-                cursor.execute(sql_insert2)
-            else:
-                old_vol = now_vol-stock_vol
-                old_price = (now_price*now_vol-deal_price*stock_vol)/old_vol
-                old_hold = now_hold -1
-                sql_insert5 = "update my_stock_pool set buy_price = {0},hold_vol = {1},hold_days = {2} " \
-                              "where stock_code = '{3}'".format(old_price,old_vol,old_hold,stock_code)
-                cursor.execute(sql_insert5)
-                cursor.execute(sql_insert2)
+    sql_insert6 = "select seq from my_capital order by seq desc limit 1"
+    cursor.execute(sql_insert6)
+    seq = cursor.fetchall()[0][0]+1
+    sql_insert7 = "alter table my_capital AUTO_INCREMENT={}".format(seq)
+    cursor.execute(sql_insert7)
+
     db.commit()
     db.close()
 
 
-
 if __name__=='__main__':
 
-    Dealback(1)
+    # Dealback(-1)
+    # exit()
+    #
+    # for code in ['000001.SZ']:
+    #     result = sell(code, '2021-06-10', -1)
+    #     print(result)
+    #
+    # exit()
+    #
+    # for code in ['000001.SZ','000002.SZ']:
+    #     result = buy(code, '2021-06-09', 10000)
+    #     print(result)
+    #     if result == -2:
+    #         break
+    # exit()
+    #
+    # # buy_Paralist=[]
+    # operatorMark = 'buy'
+    # buy_Schame = 'equmoney_Byday'
+
+    db = pymysql.connect(host='127.0.0.1', user='root', passwd='123456', db='test', charset='utf8')
+    cursor = db.cursor()
+
+    sql_sel = "select * from deal_recipe"
+    cursor.execute(sql_sel)
+    deal_act = cursor.fetchall()
+
+    db.commit()
+    db.close()
+
+    for da in deal_act:
+        action = da[0]
+        state_dt = da[1]
+        stock_code = da[2]
+        money = da[3]
+        if action == 'buy':
+            result = buy(stock_code, state_dt, money)
+        elif action == 'sell':
+            result = sell(stock_code,state_dt)
+        elif action == 'daily':
+            result = Cap_Update_dailay(state_dt)
 
     exit()
-    for code in ['000001.SZ','000002.SZ']:
-        result = buy(code, '2021-07-28', 10000)
-        print(result)
-        if result == -2:
-            break
-    exit()
-    operatorMark = 'buy'
+
     # buy参数设定：
-    stock_code = []
-    opdate ='2021-07-05'
+    opdate_buy = ['2021-07-05']
+    stockcode_buy = {'2021-07-05':{'000001.SZ':10000, '000002.SZ':10000}}
+
+    # if buy_Schame == 'equmoney_Byday':
+    #     for opdate in opdate_buy:
+
+
+
+
+
+
+
+
 
     # sell参数设定：
+    stock_code = ['000001.SZ', '000002.SZ']
+    opdate = '2021-07-05'
 
     # update_daily参数设定：
 
