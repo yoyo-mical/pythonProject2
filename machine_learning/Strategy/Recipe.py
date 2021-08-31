@@ -1,4 +1,4 @@
-import pymysql.cursors
+import pymysql
 
 
 def recipe_buy(datelist, codelist, moneylist, buymark):
@@ -15,19 +15,19 @@ def recipe_buy(datelist, codelist, moneylist, buymark):
     cursor = db.cursor()
 
     if buymark == 'equmoney_bycode':
-        for i in len(datelist):
-            for j in len(codelist[i]):
+        for i in range(len(datelist)):
+            for j in range(len(codelist[i])):
                 sql_recipe = "insert ignore into deal_recipe (action,state_dt,stock_code,money)" \
-                             "value ({},{},{},{})" \
+                             "value ('{}','{}','{}',{})" \
                     .format('buy', datelist[i], codelist[i][j], moneylist[i][0])
                 cursor.execute(sql_recipe)
                 tup_buy = ('buy', datelist[i], codelist[i][j], moneylist[i][0])
                 buyactlist.append(tup_buy)
     elif buymark == 'defmoney_bycode':
-        for i in len(datelist):
-            for j in len(codelist[i]):
+        for i in range(len(datelist)):
+            for j in range(len(codelist[i])):
                 sql_recipe = "insert ignore into deal_recipe (action,state_dt,stock_code,money)" \
-                             "value ({},{},{},{})" \
+                             "value ('{}','{}','{}',{})" \
                     .format('buy', datelist[i], codelist[i][j], moneylist[i][j])
                 cursor.execute(sql_recipe)
                 tup_buy = ('buy', datelist[i], codelist[i][j], moneylist[i][j])
@@ -45,10 +45,10 @@ def recipe_sell(datelist, codelist):
     db = pymysql.connect(host='127.0.0.1', user='root', passwd='123456', db='test', charset='utf8')
     cursor = db.cursor()
 
-    for i in len(datelist):
-        for j in len(codelist[i]):
+    for i in range(len(datelist)):
+        for j in range(len(codelist[i])):
             sql_recipe = "insert ignore into deal_recipe (action,state_dt,stock_code)" \
-                         "value ({},{},{})" \
+                         "value ('{}','{}','{}')" \
                 .format('sell', datelist[i], codelist[i][j])
             cursor.execute(sql_recipe)
             tup_sell = ('sell', datelist[i], codelist[i][j])
